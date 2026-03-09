@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
+const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
 const PAYMENT_PROVIDER_TOKEN = "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
@@ -381,25 +381,15 @@ if (botToken) {
     }
   });
 
-  // Use polling by default unless we are explicitly in AI Studio production with an APP_URL
-  if (process.env.APP_URL && process.env.NODE_ENV === 'production' && process.env.APP_URL.includes('.run.app')) {
-    const webhookUrl = `${process.env.APP_URL}${secretPath}`;
-    console.log(`[Bot] Attempting to set webhook to: ${webhookUrl}`);
-    bot.telegram.setWebhook(webhookUrl, {
-      drop_pending_updates: true 
+  // Always use polling to ensure it works on any server
+  console.log("[Bot] Starting in polling mode...");
+  bot.telegram.deleteWebhook({ drop_pending_updates: true })
+    .then(() => {
+      bot!.launch({ dropPendingUpdates: true })
+        .then(() => console.log("[Bot] Successfully started polling"))
+        .catch(err => console.error("[Bot] Polling launch failed:", err));
     })
-      .then(() => console.log("[Bot] Webhook set successfully"))
-      .catch(err => console.error('[Bot] Failed to set webhook:', err));
-    app.use(bot.webhookCallback(secretPath));
-  } else {
-    console.log("[Bot] Using polling mode...");
-    // Ensure any existing webhooks are deleted before starting polling
-    bot.telegram.deleteWebhook({ drop_pending_updates: true })
-      .then(() => {
-        bot!.launch({ dropPendingUpdates: true }).catch(err => console.error("[Bot] Polling launch failed:", err));
-      })
-      .catch(err => console.error("[Bot] Failed to delete webhook:", err));
-  }
+    .catch(err => console.error("[Bot] Failed to delete webhook:", err));
 } else {
   console.error("[Bot] CRITICAL: TELEGRAM_BOT_TOKEN is not defined!");
   app.get("/api/bot-status", (req, res) => {
