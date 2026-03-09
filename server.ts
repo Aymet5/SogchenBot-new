@@ -8,12 +8,12 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3005; // Changed default from 3000 to 3005 to avoid conflicts
 
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
+const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
 const PAYMENT_PROVIDER_TOKEN = "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
