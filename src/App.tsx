@@ -48,7 +48,7 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isPrintMode, setIsPrintMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'orders' | 'prayers'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'prayers' | 'broadcast'>('orders');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newPrayer, setNewPrayer] = useState({ name: '', description: '' });
 
@@ -272,6 +272,15 @@ export default function App() {
               >
                 Молебны
               </button>
+              <button 
+                onClick={() => setActiveTab('broadcast')}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+                  activeTab === 'broadcast' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#1A1A1A]/40 hover:text-[#1A1A1A]/60"
+                )}
+              >
+                Рассылка
+              </button>
             </nav>
           </div>
 
@@ -429,6 +438,47 @@ export default function App() {
               </div>
             </div>
           </>
+        ) : activeTab === 'broadcast' ? (
+          <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 border border-[#1A1A1A]/5">
+            <div className="max-w-2xl mx-auto">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="bg-blue-50 p-3 rounded-2xl">
+                  <ScrollText className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-serif font-bold">Рассылка сообщений</h2>
+                  <p className="text-sm text-[#1A1A1A]/60 mt-1">Отправка сообщений всем пользователям бота</p>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-8">
+                <h3 className="font-bold text-amber-800 mb-3 flex items-center gap-2">
+                  <span className="text-xl">⚠️</span> Как сделать рассылку с фото/видео:
+                </h3>
+                <ol className="list-decimal list-inside space-y-3 text-amber-900/80 text-sm leading-relaxed">
+                  <li>Откройте бота в Telegram.</li>
+                  <li>Отправьте боту сообщение, которое хотите разослать (можно прикрепить фото, видео, добавить форматирование текста).</li>
+                  <li>Нажмите на отправленное сообщение и выберите <strong>«Ответить» (Reply)</strong>.</li>
+                  <li>Введите команду <code>/broadcast</code> и отправьте.</li>
+                  <li>Бот автоматически разошлет это сообщение всем пользователям!</li>
+                </ol>
+              </div>
+
+              <div className="bg-[#F5F2ED] rounded-2xl p-6 text-center border border-[#1A1A1A]/5">
+                <p className="text-[#1A1A1A]/60 text-sm mb-4">
+                  Для рассылки простого текста без медиафайлов вы также можете использовать команду <code>/broadcast</code> в боте, ответив на текстовое сообщение.
+                </p>
+                <a 
+                  href="https://t.me/SogchenBot" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#5A5A40] text-white rounded-xl font-bold hover:bg-[#4A4A30] transition-colors shadow-lg shadow-[#5A5A40]/20"
+                >
+                  Перейти в бота для рассылки
+                </a>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="bg-white rounded-[2rem] shadow-xl border border-[#1A1A1A]/5 p-8">
             <div className="flex justify-between items-center mb-8">

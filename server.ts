@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3005; // Changed default from 3000 to 3005 to a
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
+const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
 const PAYMENT_PROVIDER_TOKEN = "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
@@ -26,6 +26,21 @@ if (botToken) {
   const startLogic = async (ctx: any, isEdit = false) => {
     ctx.session.step = null;
     ctx.session.order = null;
+
+    // Save user to database
+    try {
+      db.prepare(`
+        INSERT OR IGNORE INTO users (telegram_id, username, first_name) 
+        VALUES (?, ?, ?)
+      `).run(
+        ctx.from.id.toString(), 
+        ctx.from.username || null, 
+        ctx.from.first_name || null
+      );
+    } catch (e) {
+      console.error("Failed to save user:", e);
+    }
+
     const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот для заказа молебнов.\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback("📅 Молебны на сегодня", "menu_today")],
@@ -73,6 +88,40 @@ if (botToken) {
     }
   });
 
+  bot.command("broadcast", async (ctx) => {
+    // Check if user is master admin
+    const admin = db.prepare("SELECT * FROM admins WHERE telegram_id = ? AND role = 'master'").get(ctx.from.id.toString());
+    if (!admin) {
+      return ctx.reply("❌ Эта команда доступна только мастер-админу.");
+    }
+
+    if (!ctx.message.reply_to_message) {
+      return ctx.reply("ℹ️ Чтобы сделать рассылку:\n1. Отправьте боту любое сообщение (текст, фото, видео, голосовое).\n2. Нажмите на это сообщение и выберите «Ответить» (Reply).\n3. Введите команду /broadcast и отправьте.");
+    }
+
+    const users = db.prepare("SELECT telegram_id FROM users").all() as any[];
+    if (users.length === 0) {
+      return ctx.reply("В базе нет пользователей для рассылки.");
+    }
+
+    await ctx.reply(`⏳ Начинаю рассылку для ${users.length} пользователей...`);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const user of users) {
+      try {
+        await ctx.telegram.copyMessage(user.telegram_id, ctx.chat.id, ctx.message.reply_to_message.message_id);
+        successCount++;
+      } catch (e) {
+        failCount++;
+      }
+      // Small delay to avoid hitting rate limits
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    await ctx.reply(`✅ Рассылка завершена!\nУспешно доставлено: ${successCount}\nОшибок (пользователь заблокировал бота): ${failCount}`);
+  });
+
   async function notifyLamas(prayerName: string, names: string) {
     const lamas = db.prepare("SELECT telegram_id FROM admins WHERE role = 'lama'").all() as any[];
     const message = `🙏 *Новый заказ на молебен*\n\nМолебен: *${prayerName}*\nИмена: ${names}`;
@@ -97,15 +146,25 @@ if (botToken) {
   }
 
   bot.action("menu_today", async (ctx) => {
-    const today = new Date();
+    // Получаем текущее время в Бурятии (Иркутское время, UTC+8)
+    const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Irkutsk" });
+    const today = new Date(nowStr);
+    
     const day = today.getDate();
     const month = today.getMonth() + 1; // 1-12
     const year = today.getFullYear();
+    const currentHour = today.getHours();
 
-    // Ежедневные хуралы (по названиям из БД)
-    const dailyPrayerNames = ['Намсарай Сахюусан', 'Юм Нити', 'Манай Баатруудад'];
-    let todayPrayerNames = [...dailyPrayerNames];
+    // Ежедневные хуралы и их время
+    const dailyPrayers = [
+      { name: 'Намсарай Сахюусан', hour: 9 },
+      { name: 'Юм Нити', hour: 14 },
+      { name: 'Манай Баатруудад', hour: 16 }
+    ];
+    
+    let todayPrayerNames = [...dailyPrayers.map(p => p.name)];
     let mainPrayerName: string | null = null;
+    let mainPrayerHour = 15;
 
     // Расписание на март 2026
     if (year === 2026 && month === 3) {
@@ -140,34 +199,53 @@ if (botToken) {
     const placeholders = todayPrayerNames.map(() => '?').join(',');
     const prayers = db.prepare(`SELECT * FROM prayers WHERE is_active = 1 AND name IN (${placeholders})`).all(...todayPrayerNames) as any[];
 
-    if (prayers.length === 0) {
-      return ctx.editMessageText("На сегодня нет активных молебнов в расписании.", Markup.inlineKeyboard([[Markup.button.callback("⬅️ Назад в меню", "back_to_main")]]));
-    }
-
-    const buttons = prayers.map(p => [Markup.button.callback(p.name, `select_prayer_${p.id}`)]);
-    buttons.push([Markup.button.callback("⬅️ Назад в меню", "back_to_main")]);
-    
-    const dateStr = today.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-    
     const getDesc = (name: string) => {
       const p = prayers.find(pr => pr.name === name);
       return p && p.description ? ` (${p.description})` : '';
     };
 
+    const dateStr = today.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
     let scheduleText = `📅 *Расписание на сегодня (${dateStr}):*\n\n`;
     scheduleText += `*Ежедневные хуралы:*\n`;
-    scheduleText += `09:00 — «Намсарай Сахюусан»${getDesc('Намсарай Сахюусан')}\n`;
-    scheduleText += `14:00 — «Юм Нити»${getDesc('Юм Нити')}\n`;
-    scheduleText += `16:00 — «Манай Баатруудад»${getDesc('Манай Баатруудад')}\n\n`;
+    
+    let buttons = [];
 
+    // Добавляем ежедневные хуралы
+    for (const dp of dailyPrayers) {
+      const isPast = currentHour >= dp.hour;
+      const status = isPast ? "✅ Завершен" : "⏳ Ожидается";
+      scheduleText += `${dp.hour}:00 — «${dp.name}»${getDesc(dp.name)} [${status}]\n`;
+      
+      // Добавляем кнопку только если хурал еще не прошел
+      if (!isPast) {
+        const p = prayers.find(pr => pr.name === dp.name);
+        if (p) buttons.push([Markup.button.callback(`${dp.hour}:00 - ${p.name}`, `select_prayer_${p.id}`)]);
+      }
+    }
+    scheduleText += `\n`;
+
+    // Добавляем основной хурал
     if (mainPrayerName) {
+      const isPast = currentHour >= mainPrayerHour;
+      const status = isPast ? "✅ Завершен" : "⏳ Ожидается";
       scheduleText += `*Основной хурал дня (15:00):*\n`;
-      scheduleText += `«${mainPrayerName}»${getDesc(mainPrayerName)}\n\n`;
+      scheduleText += `«${mainPrayerName}»${getDesc(mainPrayerName)} [${status}]\n\n`;
+      
+      if (!isPast) {
+        const p = prayers.find(pr => pr.name === mainPrayerName);
+        if (p) buttons.push([Markup.button.callback(`15:00 - ${p.name}`, `select_prayer_${p.id}`)]);
+      }
     } else {
       scheduleText += `*Основной хурал дня (15:00):*\nСегодня не проводится или нет в расписании.\n\n`;
     }
 
-    scheduleText += `Выберите молебен для заказа:`;
+    if (buttons.length === 0) {
+      scheduleText += `_Все молебны на сегодня уже завершены._`;
+    } else {
+      scheduleText += `Выберите молебен для заказа:`;
+    }
+
+    buttons.push([Markup.button.callback("⬅️ Назад в меню", "back_to_main")]);
 
     await ctx.editMessageText(scheduleText, {
       parse_mode: 'Markdown',
@@ -250,7 +328,13 @@ if (botToken) {
     
     const descText = prayer.description ? `\n_${prayer.description}_\n` : '';
     
-    await ctx.editMessageText(`Вы выбрали: *${prayer.name}*${descText}\nПожалуйста, напишите **имена** (через запятую), за кого нужно помолиться.`, { 
+    let timeText = "";
+    if (prayer.name === 'Намсарай Сахюусан') timeText = "Ежедневно в 09:00";
+    else if (prayer.name === 'Юм Нити') timeText = "Ежедневно в 14:00";
+    else if (prayer.name === 'Манай Баатруудад') timeText = "Ежедневно в 16:00";
+    else timeText = "В 15:00 (согласно расписанию)";
+    
+    await ctx.editMessageText(`Вы выбрали: *${prayer.name}*${descText}\n🕒 Время проведения: ${timeText}\n\nПожалуйста, напишите **имена** (через запятую), за кого нужно помолиться.`, { 
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([[Markup.button.callback("⬅️ Назад в меню", "back_to_main")]])
     });

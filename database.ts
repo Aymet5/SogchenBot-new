@@ -11,6 +11,13 @@ db.exec(`
     is_active INTEGER DEFAULT 1
   );
 
+  CREATE TABLE IF NOT EXISTS users (
+    telegram_id TEXT PRIMARY KEY,
+    username TEXT,
+    first_name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id TEXT NOT NULL,
