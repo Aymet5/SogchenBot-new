@@ -1,0 +1,5 @@
+{
+  "name": "Buddhist Khural Management System",
+  "description": "A Telegram bot and admin panel for managing prayer requests (khurals), names, and donations for Buddhist organizations.",
+  "requestFramePermissions": []
+}
