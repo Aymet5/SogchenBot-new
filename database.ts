@@ -28,13 +28,6 @@ db.exec(`
     role TEXT DEFAULT 'lama'
   );
 
-  -- Migration for existing admins table
-  try {
-    db.exec("ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'lama'");
-  } catch (e) {
-    // Ignore if column already exists
-  }
-
   -- Seed initial prayers if empty
   INSERT OR IGNORE INTO prayers (id, name, description) VALUES 
   (1, 'Намсарай Сахюусан', 'За материальное и духовное благосостояние'),
@@ -56,5 +49,12 @@ db.exec(`
   (17, 'Алтан Гэрэл', 'Устранение препятствий и семейный достаток'),
   (18, 'Зурган Юроол', 'Шесть благих пожеланий');
 `);
+
+// Migration for existing admins table
+try {
+  db.exec("ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'lama'");
+} catch (e) {
+  // Ignore if column already exists
+}
 
 export default db;
