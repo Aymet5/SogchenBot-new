@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3005; // Changed default from 3000 to 3005 to a
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
+const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
 const PAYMENT_PROVIDER_TOKEN = "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
@@ -105,6 +105,7 @@ if (botToken) {
     // Ежедневные хуралы (по названиям из БД)
     const dailyPrayerNames = ['Намсарай Сахюусан', 'Юм Нити', 'Манай Баатруудад'];
     let todayPrayerNames = [...dailyPrayerNames];
+    let mainPrayerName: string | null = null;
 
     // Расписание на март 2026
     if (year === 2026 && month === 3) {
@@ -128,7 +129,10 @@ if (botToken) {
         31: 'Зурган Юроол'
       };
       if (marchSchedule[day]) {
-        todayPrayerNames.push(marchSchedule[day]);
+        mainPrayerName = marchSchedule[day];
+        if (!todayPrayerNames.includes(mainPrayerName)) {
+          todayPrayerNames.push(mainPrayerName);
+        }
       }
     }
 
@@ -144,7 +148,28 @@ if (botToken) {
     buttons.push([Markup.button.callback("⬅️ Назад в меню", "back_to_main")]);
     
     const dateStr = today.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-    await ctx.editMessageText(`📅 *Расписание на сегодня (${dateStr}):*\n\n09:00 — Намсарай Сахюусан\n14:00 — Юм Нити\n15:00 — Основной хурал дня\n16:00 — Манай Баатруудад\n\nВыберите молебен для заказа:`, {
+    
+    const getDesc = (name: string) => {
+      const p = prayers.find(pr => pr.name === name);
+      return p && p.description ? ` (${p.description})` : '';
+    };
+
+    let scheduleText = `📅 *Расписание на сегодня (${dateStr}):*\n\n`;
+    scheduleText += `*Ежедневные хуралы:*\n`;
+    scheduleText += `09:00 — «Намсарай Сахюусан»${getDesc('Намсарай Сахюусан')}\n`;
+    scheduleText += `14:00 — «Юм Нити»${getDesc('Юм Нити')}\n`;
+    scheduleText += `16:00 — «Манай Баатруудад»${getDesc('Манай Баатруудад')}\n\n`;
+
+    if (mainPrayerName) {
+      scheduleText += `*Основной хурал дня (15:00):*\n`;
+      scheduleText += `«${mainPrayerName}»${getDesc(mainPrayerName)}\n\n`;
+    } else {
+      scheduleText += `*Основной хурал дня (15:00):*\nСегодня не проводится или нет в расписании.\n\n`;
+    }
+
+    scheduleText += `Выберите молебен для заказа:`;
+
+    await ctx.editMessageText(scheduleText, {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard(buttons)
     });
@@ -222,7 +247,10 @@ if (botToken) {
     ctx.session.step = 'awaiting_names';
     
     await ctx.answerCbQuery();
-    await ctx.editMessageText(`Вы выбрали: *${prayer.name}*\n\nПожалуйста, напишите **имена** (через запятую), за кого нужно помолиться.`, { 
+    
+    const descText = prayer.description ? `\n_${prayer.description}_\n` : '';
+    
+    await ctx.editMessageText(`Вы выбрали: *${prayer.name}*${descText}\nПожалуйста, напишите **имена** (через запятую), за кого нужно помолиться.`, { 
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([[Markup.button.callback("⬅️ Назад в меню", "back_to_main")]])
     });
