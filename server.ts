@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3005; // Changed default from 3000 to 3005 to a
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
+const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
 const PAYMENT_PROVIDER_TOKEN = "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
@@ -41,7 +41,7 @@ if (botToken) {
       console.error("Failed to save user:", e);
     }
 
-    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Анхны Цогчен дугана, Иволгинского дацана.\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
+    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Аныхни Цогчен дугана, Иволгинского дацана «Хамбын Хурээ».\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback("📅 Молебны на сегодня", "menu_today")],
       [Markup.button.callback("📜 Все молебны", "menu_all")],
@@ -49,7 +49,12 @@ if (botToken) {
     ]);
 
     if (isEdit) {
-      await ctx.editMessageText(text, keyboard).catch(() => {});
+      try {
+        await ctx.editMessageText(text, keyboard);
+      } catch (e) {
+        // If editing fails (e.g. message is an invoice or deleted), send a new one
+        await ctx.reply(text, keyboard);
+      }
     } else {
       // Убираем старую нижнюю клавиатуру, если она осталась
       const msg = await ctx.reply("Загрузка...", Markup.removeKeyboard());
@@ -377,7 +382,12 @@ if (botToken) {
     ctx.session.step = null;
     ctx.session.order = null;
     await ctx.answerCbQuery("Отменено");
-    await startLogic(ctx, true);
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      // Ignore if message can't be deleted
+    }
+    await startLogic(ctx, false);
   });
 
   bot.on('text', async (ctx) => {
@@ -462,8 +472,13 @@ if (botToken) {
     
     const order = db.prepare("SELECT o.*, p.name as prayer_name FROM orders o JOIN prayers p ON o.prayer_id = p.id WHERE o.id = ?").get(orderId) as any;
     
-    await ctx.reply("✅ Оплата прошла успешно! Ваш заказ принят и передан ламе.");
-    await notifyUser(ctx.from.id.toString(), `💳 Ваш заказ был *оплачен* и передан ламе. Благодарим за пожертвование!`);
+    await ctx.reply(
+      "✅ *Оплата прошла успешно!*\n\nВаш заказ принят и передан ламе. Благодарим за пожертвование! 🙏",
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback("🏠 Вернуться в главное меню", "back_to_main")]])
+      }
+    );
     
     if (order) {
       await notifyMasters(`💳 *Оплачен заказ!*\n\nМолебен: *${order.prayer_name}*\nИмена: ${order.names}\nСумма: ${order.donation_amount} руб.\nПользователь: @${order.username}`);
@@ -482,18 +497,27 @@ if (botToken) {
       const orderId = result.lastInsertRowid;
 
       if (order.amount > 0) {
-        await ctx.replyWithInvoice({
-          title: `Пожертвование: ${order.prayerName}`,
-          description: `Молебен: ${order.prayerName}. Имена: ${order.names}`,
-          payload: orderId.toString(),
-          provider_token: PAYMENT_PROVIDER_TOKEN,
-          currency: 'RUB',
-          prices: [{ label: 'Произвольная сумма', amount: order.amount * 100 }],
-        });
+        await ctx.replyWithInvoice(
+          {
+            title: `Пожертвование: ${order.prayerName}`,
+            description: `Молебен: ${order.prayerName}. Имена: ${order.names}`,
+            payload: orderId.toString(),
+            provider_token: PAYMENT_PROVIDER_TOKEN,
+            currency: 'RUB',
+            prices: [{ label: 'Произвольная сумма', amount: order.amount * 100 }],
+          },
+          Markup.inlineKeyboard([
+            [Markup.button.pay(`Заплатить ${order.amount} RUB`)],
+            [Markup.button.callback("❌ Отмена", "cancel_order")]
+          ])
+        );
       } else {
         await ctx.editMessageText(
           `✅ *Ваш заказ принят!*\n\nМолебен: *${order.prayerName}*\nИмена: ${order.names}\n\nМы пришлем вам уведомление, когда лама проверит заказ. 🙏`,
-          { parse_mode: 'Markdown' }
+          { 
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([[Markup.button.callback("🏠 Вернуться в главное меню", "back_to_main")]])
+          }
         );
         await notifyMasters(`🔔 *Новый заказ (без оплаты)*\n\nМолебен: *${order.prayerName}*\nИмена: ${order.names}\nПользователь: @${ctx.from.username || 'Anonymous'}`);
         await notifyLamas(order.prayerName, order.names);
