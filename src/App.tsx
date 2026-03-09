@@ -10,7 +10,11 @@ import {
   Check,
   X,
   ScrollText,
-  Coins
+  Coins,
+  Download,
+  FileText,
+  Table,
+  FileSpreadsheet
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx, type ClassValue } from 'clsx';
@@ -41,6 +45,7 @@ interface Prayer {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [adminRole, setAdminRole] = useState<'lama' | 'master'>('lama');
   const [passwordInput, setPasswordInput] = useState('');
   const [orders, setOrders] = useState<Order[]>([]);
   const [prayers, setPrayers] = useState<Prayer[]>([]);
@@ -48,22 +53,27 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isPrintMode, setIsPrintMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'orders' | 'prayers' | 'broadcast'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'prayers' | 'broadcast' | 'reports'>('orders');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newPrayer, setNewPrayer] = useState({ name: '', description: '' });
 
   useEffect(() => {
     const auth = localStorage.getItem('admin_auth');
+    const role = localStorage.getItem('admin_role') as 'lama' | 'master';
     if (auth === 'true') {
       setIsAuthenticated(true);
+      if (role) setAdminRole(role);
     }
   }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === 'Лама2026+') {
+    if (passwordInput === 'Лама2026+' || passwordInput === 'Adminmaster5796') {
       setIsAuthenticated(true);
       localStorage.setItem('admin_auth', 'true');
+      const role = passwordInput === 'Adminmaster5796' ? 'master' : 'lama';
+      setAdminRole(role);
+      localStorage.setItem('admin_role', role);
     } else {
       alert('Неверный пароль');
     }
@@ -97,6 +107,7 @@ export default function App() {
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem('admin_auth');
+    localStorage.removeItem('admin_role');
   };
 
   if (!isAuthenticated) {
@@ -237,6 +248,53 @@ export default function App() {
     );
   }
 
+  const downloadNames = (prayerName: string) => {
+    const today = new Date().toLocaleDateString('ru-RU');
+    const relevantOrders = orders.filter(o => 
+      o.prayer_name === prayerName && 
+      o.status !== 'completed' &&
+      new Date(o.created_at).toLocaleDateString('ru-RU') === today
+    );
+
+    if (relevantOrders.length === 0) {
+      alert('Нет имен для скачивания на сегодня для этого молебна');
+      return;
+    }
+
+    const namesList = relevantOrders.map(o => o.names).join(', ');
+    const content = `Молебен: ${prayerName}\nДата: ${today}\n\nИмена:\n${namesList}`;
+    
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Имена_${prayerName.replace(/\s+/g, '_')}_${today}.txt`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadCSV = () => {
+    const headers = ['ID', 'Дата', 'Молебен', 'Имена', 'Сумма', 'Статус', 'Пользователь'];
+    const rows = orders.map(o => [
+      o.id,
+      new Date(o.created_at).toLocaleString('ru-RU'),
+      o.prayer_name,
+      `"${o.names.replace(/"/g, '""')}"`,
+      o.donation_amount,
+      o.status === 'verified' ? 'Оплачен' : o.status === 'pending' ? 'Ожидает' : 'Завершен',
+      o.username || 'Аноним'
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Отчет_по_заказам_${new Date().toLocaleDateString('ru-RU')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen bg-[#F5F2ED] text-[#1A1A1A] font-sans selection:bg-[#5A5A40]/20">
       {/* Sidebar / Header */}
@@ -280,6 +338,15 @@ export default function App() {
                 )}
               >
                 Рассылка
+              </button>
+              <button 
+                onClick={() => setActiveTab('reports')}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+                  activeTab === 'reports' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#1A1A1A]/40 hover:text-[#1A1A1A]/60"
+                )}
+              >
+                Отчеты
               </button>
             </nav>
           </div>
@@ -476,6 +543,103 @@ export default function App() {
                 >
                   Перейти в бота для рассылки
                 </a>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'reports' ? (
+          <div className="space-y-6">
+            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 border border-[#1A1A1A]/5">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="bg-purple-50 p-3 rounded-2xl">
+                  <FileText className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-serif font-bold">Имена на сегодня</h2>
+                  <p className="text-sm text-[#1A1A1A]/60 mt-1">Скачать списки имен для прочтения на хуралах</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {prayers.map(prayer => {
+                  const today = new Date().toLocaleDateString('ru-RU');
+                  const relevantOrders = orders.filter(o => 
+                    o.prayer_id === prayer.id && 
+                    o.status !== 'completed' &&
+                    new Date(o.created_at).toLocaleDateString('ru-RU') === today
+                  );
+                  
+                  return (
+                    <div key={prayer.id} className="p-5 rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F2ED]/50 flex flex-col justify-between">
+                      <div>
+                        <h3 className="font-bold text-lg mb-1">{prayer.name}</h3>
+                        <p className="text-sm text-[#1A1A1A]/60 mb-4">
+                          Заказов на сегодня: <span className="font-bold text-[#1A1A1A]">{relevantOrders.length}</span>
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => downloadNames(prayer.name)}
+                        disabled={relevantOrders.length === 0}
+                        className={cn(
+                          "flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all",
+                          relevantOrders.length > 0 
+                            ? "bg-[#5A5A40] text-white hover:bg-[#4A4A30] shadow-md shadow-[#5A5A40]/20" 
+                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        )}
+                      >
+                        <Download className="w-4 h-4" />
+                        Скачать .txt
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 border border-[#1A1A1A]/5">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="bg-emerald-50 p-3 rounded-2xl">
+                    <Table className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-serif font-bold">Отчет по заказам</h2>
+                    <p className="text-sm text-[#1A1A1A]/60 mt-1">Полная выгрузка всех заказов и пожертвований</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={downloadCSV}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Скачать CSV
+                </button>
+              </div>
+
+              <div className="bg-[#F5F2ED] rounded-2xl p-6 border border-[#1A1A1A]/5">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div>
+                    <p className="text-xs text-[#1A1A1A]/50 uppercase font-bold tracking-wider mb-1">Всего заказов</p>
+                    <p className="text-2xl font-serif font-bold">{orders.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#1A1A1A]/50 uppercase font-bold tracking-wider mb-1">Оплачено</p>
+                    <p className="text-2xl font-serif font-bold text-emerald-600">
+                      {orders.filter(o => o.status === 'verified').length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#1A1A1A]/50 uppercase font-bold tracking-wider mb-1">Сумма пожертвований</p>
+                    <p className="text-2xl font-serif font-bold text-blue-600">
+                      {orders.reduce((sum, o) => sum + (o.donation_amount || 0), 0)} ₽
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#1A1A1A]/50 uppercase font-bold tracking-wider mb-1">Завершено</p>
+                    <p className="text-2xl font-serif font-bold text-gray-600">
+                      {orders.filter(o => o.status === 'completed').length}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
