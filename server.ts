@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3005; // Changed default from 3000 to 3005 to a
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
+const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
 const PAYMENT_PROVIDER_TOKEN = "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
@@ -41,7 +41,7 @@ if (botToken) {
       console.error("Failed to save user:", e);
     }
 
-    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот для заказа молебнов.\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
+    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Аныхни Цогчен дугана, Иволгинского дацана «Хамбын Хурээ».\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback("📅 Молебны на сегодня", "menu_today")],
       [Markup.button.callback("📜 Все молебны", "menu_all")],
@@ -332,7 +332,40 @@ if (botToken) {
     if (prayer.name === 'Намсарай Сахюусан') timeText = "Ежедневно в 09:00";
     else if (prayer.name === 'Юм Нити') timeText = "Ежедневно в 14:00";
     else if (prayer.name === 'Манай Баатруудад') timeText = "Ежедневно в 16:00";
-    else timeText = "В 15:00 (согласно расписанию)";
+    else {
+      const marchSchedule: Record<number, string> = {
+        15: 'Юм Чун',
+        16: 'Доржо Жодбо',
+        17: 'Даши Зэгба',
+        18: 'Найман Гэгээн',
+        19: '21 Дара Эхын Магтаал',
+        20: 'Сагаан Дара Эхын Тарни 108',
+        21: 'Табан Харюулга',
+        22: 'Цедо',
+        23: 'Заһалай найман ном',
+        24: 'Согто Зандан',
+        25: 'Сунды',
+        26: 'Отошо хурал',
+        27: 'Юм Нити',
+        28: 'Насны гурбан судар',
+        29: 'Алтан Гэрэл',
+        30: 'Найман Гэгээн',
+        31: 'Зурган Юроол'
+      };
+      
+      let dates = [];
+      for (const [day, name] of Object.entries(marchSchedule)) {
+        if (name === prayer.name) {
+          dates.push(`${day} марта`);
+        }
+      }
+      
+      if (dates.length > 0) {
+        timeText = `${dates.join(', ')} в 15:00`;
+      } else {
+        timeText = "В 15:00 (согласно расписанию)";
+      }
+    }
     
     await ctx.editMessageText(`Вы выбрали: *${prayer.name}*${descText}\n🕒 Время проведения: ${timeText}\n\nПожалуйста, напишите **имена** (через запятую), за кого нужно помолиться.`, { 
       parse_mode: 'Markdown',
