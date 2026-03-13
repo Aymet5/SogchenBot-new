@@ -57,6 +57,9 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newPrayer, setNewPrayer] = useState({ name: '', description: '' });
   const [selectedPrayerReport, setSelectedPrayerReport] = useState<Prayer | null>(null);
+  const [printPrayerId, setPrintPrayerId] = useState<number | 'all'>('all');
+  const [reportPrayerId, setReportPrayerId] = useState<number | 'all'>('all');
+  const [ordersPrayerId, setOrdersPrayerId] = useState<number | 'all'>('all');
 
   useEffect(() => {
     const auth = localStorage.getItem('admin_auth');
@@ -187,7 +190,8 @@ export default function App() {
     const matchesSearch = order.names.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          order.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          order.prayer_name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+    const matchesPrayer = ordersPrayerId === 'all' || order.prayer_id === ordersPrayerId;
+    return matchesStatus && matchesSearch && matchesPrayer;
   });
 
   const stats = {
@@ -202,7 +206,17 @@ export default function App() {
       <div className="min-h-screen bg-white p-10 text-black font-serif">
         <div className="flex justify-between items-center mb-10 border-b-2 border-black pb-4 no-print">
           <h1 className="text-2xl font-bold">Список имен для прочтения</h1>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
+            <select 
+              value={printPrayerId}
+              onChange={(e) => setPrintPrayerId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              className="border border-black px-4 py-2 rounded-lg text-sm font-sans bg-white"
+            >
+              <option value="all">Все хуралы</option>
+              {prayers.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
             <button 
               onClick={() => window.print()} 
               className="bg-black text-white px-4 py-2 rounded-lg text-sm font-sans hover:bg-gray-800 transition-colors"
@@ -219,7 +233,9 @@ export default function App() {
         </div>
 
         <div className="space-y-12">
-          {prayers.map(prayer => {
+          {prayers
+            .filter(prayer => printPrayerId === 'all' || prayer.id === printPrayerId)
+            .map(prayer => {
             const prayerOrders = filteredOrders.filter(o => o.prayer_id === prayer.id && o.status !== 'completed');
             if (prayerOrders.length === 0) return null;
 
@@ -261,8 +277,24 @@ export default function App() {
       return;
     }
 
-    const namesList = relevantOrders.map(o => o.names).join(', ');
-    const content = `Молебен: ${prayerName}\nДата выгрузки: ${today}\n\nИмена:\n${namesList}`;
+    const header = `=========================================
+🙏 МОЛЕБЕН: ${prayerName.toUpperCase()}
+📅 Дата выгрузки: ${today}
+📊 Количество записей: ${relevantOrders.length}
+=========================================
+
+СПИСОК ИМЕН:
+
+`;
+
+    const namesList = relevantOrders.map((o, index) => `${index + 1}. ${o.names}`).join('\n');
+    
+    const footer = `
+
+=========================================
+Ом Мани Падме Хум! 🙏`;
+
+    const content = header + namesList + footer;
     
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -419,11 +451,23 @@ export default function App() {
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-              <FilterButton active={filterStatus === 'all'} onClick={() => setFilterStatus('all')}>Все</FilterButton>
-              <FilterButton active={filterStatus === 'pending'} onClick={() => setFilterStatus('pending')}>Ожидают</FilterButton>
-              <FilterButton active={filterStatus === 'verified'} onClick={() => setFilterStatus('verified')}>Проверены</FilterButton>
-              <FilterButton active={filterStatus === 'completed'} onClick={() => setFilterStatus('completed')}>Завершены</FilterButton>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+                <FilterButton active={filterStatus === 'all'} onClick={() => setFilterStatus('all')}>Все</FilterButton>
+                <FilterButton active={filterStatus === 'pending'} onClick={() => setFilterStatus('pending')}>Ожидают</FilterButton>
+                <FilterButton active={filterStatus === 'verified'} onClick={() => setFilterStatus('verified')}>Проверены</FilterButton>
+                <FilterButton active={filterStatus === 'completed'} onClick={() => setFilterStatus('completed')}>Завершены</FilterButton>
+              </div>
+              <select 
+                value={ordersPrayerId}
+                onChange={(e) => setOrdersPrayerId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                className="px-4 py-2 rounded-xl border border-[#1A1A1A]/10 bg-white text-sm font-medium focus:ring-2 focus:ring-[#5A5A40]/20 outline-none"
+              >
+                <option value="all">Все хуралы</option>
+                {prayers.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Orders Table */}
@@ -549,18 +593,32 @@ export default function App() {
         ) : activeTab === 'reports' ? (
           <div className="space-y-6">
             <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 border border-[#1A1A1A]/5">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="bg-purple-50 p-3 rounded-2xl">
-                  <FileText className="w-6 h-6 text-purple-600" />
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="bg-purple-50 p-3 rounded-2xl">
+                    <FileText className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-serif font-bold">Имена на сегодня</h2>
+                    <p className="text-sm text-[#1A1A1A]/60 mt-1">Скачать списки имен для прочтения на хуралах</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-serif font-bold">Имена на сегодня</h2>
-                  <p className="text-sm text-[#1A1A1A]/60 mt-1">Скачать списки имен для прочтения на хуралах</p>
-                </div>
+                <select 
+                  value={reportPrayerId}
+                  onChange={(e) => setReportPrayerId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="px-4 py-2.5 rounded-xl border border-[#1A1A1A]/10 bg-[#F5F2ED] text-sm font-medium focus:ring-2 focus:ring-[#5A5A40]/20 outline-none"
+                >
+                  <option value="all">Все хуралы</option>
+                  {prayers.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {prayers.map(prayer => {
+                {prayers
+                  .filter(prayer => reportPrayerId === 'all' || prayer.id === reportPrayerId)
+                  .map(prayer => {
                   const relevantOrders = orders.filter(o => 
                     o.prayer_id === prayer.id && 
                     o.status !== 'completed'
