@@ -13,8 +13,8 @@ const PORT = 3000;
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
-const PAYMENT_PROVIDER_TOKEN = "381764678:TEST:170163";
+const botToken = process.env.TELEGRAM_BOT_TOKEN || "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
+const PAYMENT_PROVIDER_TOKEN = process.env.PAYMENT_PROVIDER_TOKEN || "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
 if (botToken) {
@@ -41,7 +41,7 @@ if (botToken) {
       console.error("Failed to save user:", e);
     }
 
-    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Анхны Цогчен дугана, Иволгинского дацана.\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
+    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Аныхни Цогчен дугана, Иволгинского дацана «Хамбын Хурээ».\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback("📅 Молебны на сегодня", "menu_today")],
       [Markup.button.callback("📜 Все молебны", "menu_all")],
@@ -558,12 +558,18 @@ if (botToken) {
   // Always use polling to ensure it works on any server
   console.log("[Bot] Starting in polling mode...");
   bot.telegram.deleteWebhook({ drop_pending_updates: true })
-    .then(() => {
-      bot!.launch({ dropPendingUpdates: true })
-        .then(() => console.log("[Bot] Successfully started polling"))
-        .catch(err => console.error("[Bot] Polling launch failed:", err));
+    .catch(err => {
+      console.error("[Bot] Failed to delete webhook:", err.message);
+      // If unauthorized, don't try to launch
+      if (err.response && err.response.error_code === 401) {
+        throw new Error("Bot token is invalid or revoked.");
+      }
     })
-    .catch(err => console.error("[Bot] Failed to delete webhook:", err));
+    .then(() => {
+      return bot!.launch({ dropPendingUpdates: true });
+    })
+    .then(() => console.log("[Bot] Successfully started polling"))
+    .catch(err => console.error("[Bot] Polling launch failed:", err.message));
 } else {
   console.error("[Bot] CRITICAL: TELEGRAM_BOT_TOKEN is not defined!");
   app.get("/api/bot-status", (req, res) => {
