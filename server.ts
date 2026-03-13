@@ -13,7 +13,7 @@ const PORT = 3000;
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = process.env.TELEGRAM_BOT_TOKEN || "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
+const botToken = process.env.TELEGRAM_BOT_TOKEN || "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
 const PAYMENT_PROVIDER_TOKEN = process.env.PAYMENT_PROVIDER_TOKEN || "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
@@ -41,7 +41,7 @@ if (botToken) {
       console.error("Failed to save user:", e);
     }
 
-    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Анхны Цогчен дугана, Иволгинского дацана .\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
+    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Аныхни Цогчен дугана, Иволгинского дацана «Хамбын Хурээ».\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback("📅 Молебны на сегодня", "menu_today")],
       [Markup.button.callback("📜 Все молебны", "menu_all")],
@@ -664,6 +664,12 @@ app.delete("/api/prayers/:id", (req, res) => {
   res.json({ success: true });
 });
 
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -672,7 +678,11 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static("dist"));
+    const distPath = path.join(__dirname, "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
