@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3005; // Changed default from 3000 to 3005 to a
 app.use(express.json());
 
 // --- Telegram Bot Logic ---
-const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnM";
+const botToken = "8768988908:AAFAvtNbQGLMX1heOH2cPdRypK3maDmiPnX";
 const PAYMENT_PROVIDER_TOKEN = "381764678:TEST:170163";
 let bot: Telegraf<any> | null = null;
 
@@ -41,7 +41,7 @@ if (botToken) {
       console.error("Failed to save user:", e);
     }
 
-    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Анхны Цогчен дугана, Иволгинского дацана .\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
+    const text = "Амар мэндэ! 🙏 Добро пожаловать в официальный бот Аныхни Цогчен дугана, Иволгинского дацана «Хамбын Хурээ».\n\nЗдесь вы можете передать имена на хуралы и сделать добровольное подношение.\n\nВыберите нужное действие ниже:";
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback("📅 Молебны на сегодня", "menu_today")],
       [Markup.button.callback("📜 Все молебны", "menu_all")],
@@ -610,6 +610,24 @@ app.post("/api/orders/:id/complete", async (req, res) => {
     await notifyUser(order.telegram_id, `🙏 Молебен по вашему заказу был *прочитан*. Ом Мани Падме Хум!`);
   }
   res.json({ success: true });
+});
+
+app.post("/api/prayers/:id/complete-orders", async (req, res) => {
+  const { id } = req.params;
+  const prayer = db.prepare("SELECT * FROM prayers WHERE id = ?").get(id) as any;
+  if (!prayer) return res.status(404).json({ error: "Prayer not found" });
+
+  const activeOrders = db.prepare("SELECT * FROM orders WHERE prayer_id = ? AND status != 'completed'").all() as any[];
+  
+  if (activeOrders.length > 0) {
+    db.prepare("UPDATE orders SET status = 'completed' WHERE prayer_id = ? AND status != 'completed'").run(id);
+    
+    for (const order of activeOrders) {
+      await notifyUser(order.telegram_id, `🙏 Молебен *${prayer.name}* по вашему заказу был *прочитан*. Ом Мани Падме Хум!`);
+    }
+  }
+  
+  res.json({ success: true, count: activeOrders.length });
 });
 
 app.get("/api/prayers", (req, res) => {

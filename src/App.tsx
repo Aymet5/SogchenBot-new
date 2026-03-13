@@ -56,6 +56,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'orders' | 'prayers' | 'broadcast' | 'reports'>('orders');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newPrayer, setNewPrayer] = useState({ name: '', description: '' });
+  const [selectedPrayerReport, setSelectedPrayerReport] = useState<Prayer | null>(null);
 
   useEffect(() => {
     const auth = localStorage.getItem('admin_auth');
@@ -252,17 +253,16 @@ export default function App() {
     const today = new Date().toLocaleDateString('ru-RU');
     const relevantOrders = orders.filter(o => 
       o.prayer_name === prayerName && 
-      o.status !== 'completed' &&
-      new Date(o.created_at).toLocaleDateString('ru-RU') === today
+      o.status !== 'completed'
     );
 
     if (relevantOrders.length === 0) {
-      alert('Нет имен для скачивания на сегодня для этого молебна');
+      alert('Нет активных имен для скачивания для этого молебна');
       return;
     }
 
     const namesList = relevantOrders.map(o => o.names).join(', ');
-    const content = `Молебен: ${prayerName}\nДата: ${today}\n\nИмена:\n${namesList}`;
+    const content = `Молебен: ${prayerName}\nДата выгрузки: ${today}\n\nИмена:\n${namesList}`;
     
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -561,23 +561,28 @@ export default function App() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {prayers.map(prayer => {
-                  const today = new Date().toLocaleDateString('ru-RU');
                   const relevantOrders = orders.filter(o => 
                     o.prayer_id === prayer.id && 
-                    o.status !== 'completed' &&
-                    new Date(o.created_at).toLocaleDateString('ru-RU') === today
+                    o.status !== 'completed'
                   );
                   
                   return (
-                    <div key={prayer.id} className="p-5 rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F2ED]/50 flex flex-col justify-between">
+                    <div 
+                      key={prayer.id} 
+                      onClick={() => setSelectedPrayerReport(prayer)}
+                      className="p-5 rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F2ED]/50 flex flex-col justify-between cursor-pointer hover:bg-[#F5F2ED] transition-colors"
+                    >
                       <div>
                         <h3 className="font-bold text-lg mb-1">{prayer.name}</h3>
                         <p className="text-sm text-[#1A1A1A]/60 mb-4">
-                          Заказов на сегодня: <span className="font-bold text-[#1A1A1A]">{relevantOrders.length}</span>
+                          Активных заказов: <span className="font-bold text-[#1A1A1A]">{relevantOrders.length}</span>
                         </p>
                       </div>
                       <button 
-                        onClick={() => downloadNames(prayer.name)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadNames(prayer.name);
+                        }}
                         disabled={relevantOrders.length === 0}
                         className={cn(
                           "flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all",
@@ -687,6 +692,66 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Selected Prayer Report Modal */}
+      {selectedPrayerReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center p-6 border-b border-[#1A1A1A]/10">
+              <div>
+                <h3 className="text-2xl font-serif font-bold">{selectedPrayerReport.name}</h3>
+                <p className="text-sm text-[#1A1A1A]/60 mt-1">Список имен для прочтения</p>
+              </div>
+              <button onClick={() => setSelectedPrayerReport(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <X className="w-6 h-6 text-[#1A1A1A]/40" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="space-y-4">
+                {orders.filter(o => o.prayer_id === selectedPrayerReport.id && o.status !== 'completed').length === 0 ? (
+                  <p className="text-center text-[#1A1A1A]/40 py-8">Нет активных заказов для этого молебна</p>
+                ) : (
+                  orders.filter(o => o.prayer_id === selectedPrayerReport.id && o.status !== 'completed').map(order => (
+                    <div key={order.id} className="bg-[#F5F2ED]/50 p-4 rounded-2xl border border-[#1A1A1A]/5">
+                      <p className="text-lg font-medium leading-relaxed mb-2">{order.names}</p>
+                      <div className="flex justify-between items-center text-xs text-[#1A1A1A]/50">
+                        <span>{order.donation_amount > 0 ? `Пожертвование: ${order.donation_amount} ₽` : 'Без суммы'}</span>
+                        <span>{format(new Date(order.created_at), 'dd.MM.yyyy HH:mm')}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-[#1A1A1A]/10 bg-gray-50 rounded-b-[2rem] flex flex-col sm:flex-row gap-3">
+              <button 
+                onClick={() => downloadNames(selectedPrayerReport.name)}
+                disabled={orders.filter(o => o.prayer_id === selectedPrayerReport.id && o.status !== 'completed').length === 0}
+                className="flex-1 py-3 bg-white border border-[#1A1A1A]/10 text-[#1A1A1A] rounded-xl font-bold hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Скачать .txt
+              </button>
+              <button 
+                onClick={async () => {
+                  if (confirm('Вы уверены, что хотите отметить этот хурал как прочитанный? Всем заказавшим придет уведомление в Telegram.')) {
+                    await fetch(`/api/prayers/${selectedPrayerReport.id}/complete-orders`, { method: 'POST' });
+                    setSelectedPrayerReport(null);
+                    fetchData();
+                  }
+                }}
+                disabled={orders.filter(o => o.prayer_id === selectedPrayerReport.id && o.status !== 'completed').length === 0}
+                className="flex-1 py-3 bg-[#5A5A40] text-white rounded-xl font-bold hover:bg-[#4A4A30] transition-all shadow-lg shadow-[#5A5A40]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Хурал завершен (Отправить всем)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Prayer Modal */}
       {isAddModalOpen && (
