@@ -14,7 +14,10 @@ import {
   Download,
   FileText,
   Table,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Sun,
+  Moon,
+  Menu
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx, type ClassValue } from 'clsx';
@@ -60,15 +63,36 @@ export default function App() {
   const [printPrayerId, setPrintPrayerId] = useState<number | 'all'>('all');
   const [reportPrayerId, setReportPrayerId] = useState<number | 'all'>('all');
   const [ordersPrayerId, setOrdersPrayerId] = useState<number | 'all'>('all');
+  const [csvPrayerId, setCsvPrayerId] = useState<number | 'all'>('all');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const auth = localStorage.getItem('admin_auth');
     const role = localStorage.getItem('admin_role') as 'lama' | 'master';
+    const theme = localStorage.getItem('admin_theme');
+    
     if (auth === 'true') {
       setIsAuthenticated(true);
       if (role) setAdminRole(role);
     }
+    
+    if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      setIsDarkMode(true);
+      document.documentElement.classList.add('dark');
+    }
   }, []);
+
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+    if (!isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('admin_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('admin_theme', 'light');
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,26 +140,34 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#F5F2ED] flex items-center justify-center p-4 font-sans">
-        <div className="bg-white p-8 rounded-[2rem] shadow-xl max-w-sm w-full border border-[#1A1A1A]/5">
+      <div className="min-h-screen bg-[#F5F2ED] dark:bg-[#121212] flex items-center justify-center p-4 font-sans transition-colors duration-300">
+        <div className="absolute top-4 right-4">
+          <button 
+            onClick={toggleTheme}
+            className="p-3 bg-white dark:bg-[#1E1E1E] rounded-full shadow-lg border border-[#1A1A1A]/5 dark:border-white/5 text-[#1A1A1A] dark:text-white transition-all hover:scale-105"
+          >
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+        </div>
+        <div className="bg-white dark:bg-[#1E1E1E] p-8 rounded-[2rem] shadow-xl max-w-sm w-full border border-[#1A1A1A]/5 dark:border-white/5 transition-colors duration-300">
           <div className="flex justify-center mb-6">
-            <div className="bg-[#5A5A40] p-4 rounded-2xl shadow-lg shadow-[#5A5A40]/20">
+            <div className="bg-[#5A5A40] dark:bg-[#7A7A5A] p-4 rounded-2xl shadow-lg shadow-[#5A5A40]/20 dark:shadow-none transition-colors duration-300">
               <ScrollText className="text-white w-8 h-8" />
             </div>
           </div>
-          <h1 className="text-2xl font-serif font-bold text-center mb-2">Панель Ламы</h1>
-          <p className="text-sm text-center text-[#1A1A1A]/60 mb-8">Введите пароль для доступа к управлению заказами</p>
+          <h1 className="text-2xl font-serif font-bold text-center mb-2 text-[#1A1A1A] dark:text-white">Панель Ламы</h1>
+          <p className="text-sm text-center text-[#1A1A1A]/60 dark:text-gray-400 mb-8">Введите пароль для доступа к управлению заказами</p>
           <form onSubmit={handleLogin} className="space-y-4">
             <input
               type="password"
               placeholder="Пароль"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
-              className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-[#5A5A40]/20 focus:border-[#5A5A40] outline-none transition-all text-center"
+              className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2A2A2A] text-[#1A1A1A] dark:text-white focus:ring-2 focus:ring-[#5A5A40]/20 dark:focus:ring-[#7A7A5A]/40 focus:border-[#5A5A40] dark:focus:border-[#7A7A5A] outline-none transition-all text-center placeholder:text-gray-400 dark:placeholder:text-gray-500"
             />
             <button
               type="submit"
-              className="w-full py-3 bg-[#5A5A40] text-white rounded-2xl font-bold hover:bg-[#4A4A30] transition-all shadow-lg shadow-[#5A5A40]/20 active:scale-[0.98]"
+              className="w-full py-3 bg-[#5A5A40] dark:bg-[#7A7A5A] text-white rounded-2xl font-bold hover:bg-[#4A4A30] dark:hover:bg-[#6A6A4A] transition-all shadow-lg shadow-[#5A5A40]/20 dark:shadow-none active:scale-[0.98]"
             >
               Войти
             </button>
@@ -287,7 +319,12 @@ export default function App() {
 
 `;
 
-    const namesList = relevantOrders.map((o, index) => `${index + 1}. ${o.names}`).join('\n');
+    // Group names by order and format them nicely
+    const namesList = relevantOrders.map((o, index) => {
+      const namesArray = o.names.split(/[\n,]+/).map(n => n.trim()).filter(n => n.length > 0);
+      const formattedNames = namesArray.map(n => `  • ${n}`).join('\n');
+      return `${index + 1}. Заказ #${o.id} (${o.donation_amount > 0 ? o.donation_amount + ' ₽' : 'Без суммы'}):\n${formattedNames}`;
+    }).join('\n\n');
     
     const footer = `
 
@@ -307,119 +344,161 @@ export default function App() {
   };
 
   const downloadCSV = () => {
+    const filteredOrders = csvPrayerId === 'all' 
+      ? orders 
+      : orders.filter(o => o.prayer_id === csvPrayerId);
+
     const headers = ['ID', 'Дата', 'Молебен', 'Имена', 'Сумма', 'Статус', 'Пользователь'];
-    const rows = orders.map(o => [
+    const rows = filteredOrders.map(o => [
       o.id,
       new Date(o.created_at).toLocaleString('ru-RU'),
-      o.prayer_name,
-      `"${o.names.replace(/"/g, '""')}"`,
+      `"${o.prayer_name.replace(/"/g, '""')}"`,
+      `"${o.names.replace(/"/g, '""').replace(/\n/g, ' ')}"`,
       o.donation_amount,
       o.status === 'verified' ? 'Оплачен' : o.status === 'pending' ? 'Ожидает' : 'Завершен',
-      o.username || 'Аноним'
+      `"${o.username || 'Аноним'}"`
     ]);
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    
+    // Add BOM for Excel compatibility
+    const csvContent = "\uFEFF" + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Отчет_по_заказам_${new Date().toLocaleDateString('ru-RU')}.csv`);
+    link.setAttribute("href", url);
+    
+    const prayerName = csvPrayerId === 'all' 
+      ? 'Все_хуралы' 
+      : prayers.find(p => p.id === csvPrayerId)?.name.replace(/\s+/g, '_') || 'Хурал';
+      
+    link.setAttribute("download", `Отчет_${prayerName}_${new Date().toLocaleDateString('ru-RU')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F2ED] text-[#1A1A1A] font-sans selection:bg-[#5A5A40]/20">
+    <div className="min-h-screen bg-[#F5F2ED] dark:bg-[#121212] text-[#1A1A1A] dark:text-gray-100 font-sans transition-colors duration-300">
       {/* Sidebar / Header */}
-      <header className="bg-white border-b border-[#1A1A1A]/10 px-6 py-4 sticky top-0 z-10 shadow-sm">
+      <header className="bg-white dark:bg-[#1E1E1E] border-b border-[#1A1A1A]/10 dark:border-white/5 px-4 md:px-6 py-4 sticky top-0 z-10 shadow-sm transition-colors duration-300">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center justify-between w-full md:w-auto gap-6">
             <div className="flex items-center gap-3">
-              <div className="bg-[#5A5A40] p-2 rounded-xl shadow-lg shadow-[#5A5A40]/20">
+              <div className="bg-[#5A5A40] dark:bg-[#7A7A5A] p-2 rounded-xl shadow-lg shadow-[#5A5A40]/20 dark:shadow-none transition-colors duration-300">
                 <ScrollText className="text-white w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-xl font-serif font-bold tracking-tight">Панель Ламы</h1>
-                <p className="text-[10px] text-[#1A1A1A]/40 uppercase tracking-[0.2em] font-bold">Управление дацаном</p>
+                <h1 className="text-xl font-serif font-bold tracking-tight text-[#1A1A1A] dark:text-white">Панель Ламы</h1>
+                <p className="text-[10px] text-[#1A1A1A]/40 dark:text-gray-400 uppercase tracking-[0.2em] font-bold">Управление дацаном</p>
               </div>
             </div>
-
-            <nav className="flex items-center bg-[#F5F2ED] p-1 rounded-xl border border-[#1A1A1A]/5">
+            
+            {/* Mobile Menu Toggle */}
+            <div className="flex md:hidden items-center gap-2">
               <button 
-                onClick={() => setActiveTab('orders')}
+                onClick={toggleTheme}
+                className="p-2 bg-[#F5F2ED] dark:bg-[#2A2A2A] rounded-full text-[#1A1A1A] dark:text-white transition-colors"
+              >
+                {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+              <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 bg-[#F5F2ED] dark:bg-[#2A2A2A] rounded-xl text-[#1A1A1A] dark:text-white transition-colors"
+              >
+                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
+          </div>
+
+          <div className={cn(
+            "flex-col md:flex-row items-stretch md:items-center gap-4 md:flex",
+            isMobileMenuOpen ? "flex" : "hidden"
+          )}>
+            <nav className="flex flex-col md:flex-row items-stretch md:items-center bg-[#F5F2ED] dark:bg-[#2A2A2A] p-1 rounded-xl border border-[#1A1A1A]/5 dark:border-white/5 transition-colors duration-300">
+              <button 
+                onClick={() => { setActiveTab('orders'); setIsMobileMenuOpen(false); }}
                 className={cn(
-                  "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-                  activeTab === 'orders' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#1A1A1A]/40 hover:text-[#1A1A1A]/60"
+                  "px-4 py-2 md:py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left md:text-center",
+                  activeTab === 'orders' ? "bg-white dark:bg-[#3A3A3A] text-[#5A5A40] dark:text-white shadow-sm" : "text-[#1A1A1A]/40 dark:text-gray-400 hover:text-[#1A1A1A]/60 dark:hover:text-gray-200"
                 )}
               >
                 Заказы
               </button>
               <button 
-                onClick={() => setActiveTab('prayers')}
+                onClick={() => { setActiveTab('prayers'); setIsMobileMenuOpen(false); }}
                 className={cn(
-                  "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-                  activeTab === 'prayers' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#1A1A1A]/40 hover:text-[#1A1A1A]/60"
+                  "px-4 py-2 md:py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left md:text-center",
+                  activeTab === 'prayers' ? "bg-white dark:bg-[#3A3A3A] text-[#5A5A40] dark:text-white shadow-sm" : "text-[#1A1A1A]/40 dark:text-gray-400 hover:text-[#1A1A1A]/60 dark:hover:text-gray-200"
                 )}
               >
                 Молебны
               </button>
               <button 
-                onClick={() => setActiveTab('broadcast')}
+                onClick={() => { setActiveTab('broadcast'); setIsMobileMenuOpen(false); }}
                 className={cn(
-                  "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-                  activeTab === 'broadcast' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#1A1A1A]/40 hover:text-[#1A1A1A]/60"
+                  "px-4 py-2 md:py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left md:text-center",
+                  activeTab === 'broadcast' ? "bg-white dark:bg-[#3A3A3A] text-[#5A5A40] dark:text-white shadow-sm" : "text-[#1A1A1A]/40 dark:text-gray-400 hover:text-[#1A1A1A]/60 dark:hover:text-gray-200"
                 )}
               >
                 Рассылка
               </button>
               <button 
-                onClick={() => setActiveTab('reports')}
+                onClick={() => { setActiveTab('reports'); setIsMobileMenuOpen(false); }}
                 className={cn(
-                  "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-                  activeTab === 'reports' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#1A1A1A]/40 hover:text-[#1A1A1A]/60"
+                  "px-4 py-2 md:py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left md:text-center",
+                  activeTab === 'reports' ? "bg-white dark:bg-[#3A3A3A] text-[#5A5A40] dark:text-white shadow-sm" : "text-[#1A1A1A]/40 dark:text-gray-400 hover:text-[#1A1A1A]/60 dark:hover:text-gray-200"
                 )}
               >
                 Отчеты
               </button>
             </nav>
-          </div>
 
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsPrintMode(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#5A5A40] text-white rounded-full text-sm font-bold hover:bg-[#4A4A30] transition-all shadow-lg shadow-[#5A5A40]/20 active:scale-95"
-            >
-              <ScrollText className="w-4 h-4" />
-              Режим чтения
-            </button>
-            <div className="flex bg-[#F5F2ED] border border-[#1A1A1A]/10 rounded-full px-4 py-2.5 items-center gap-2 w-full md:w-64 focus-within:ring-2 focus-within:ring-[#5A5A40]/20 transition-all">
-              <Search className="w-4 h-4 text-[#1A1A1A]/40" />
-              <input 
-                type="text" 
-                placeholder="Поиск..." 
-                className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[#1A1A1A]/30"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+              <button 
+                onClick={() => { setIsPrintMode(true); setIsMobileMenuOpen(false); }}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#5A5A40] dark:bg-[#7A7A5A] text-white rounded-xl md:rounded-full text-sm font-bold hover:bg-[#4A4A30] dark:hover:bg-[#6A6A4A] transition-all shadow-lg shadow-[#5A5A40]/20 dark:shadow-none active:scale-95"
+              >
+                <ScrollText className="w-4 h-4" />
+                Режим чтения
+              </button>
+              <div className="flex bg-[#F5F2ED] dark:bg-[#2A2A2A] border border-[#1A1A1A]/10 dark:border-white/5 rounded-xl md:rounded-full px-4 py-2.5 items-center gap-2 w-full md:w-64 focus-within:ring-2 focus-within:ring-[#5A5A40]/20 dark:focus-within:ring-[#7A7A5A]/40 transition-all">
+                <Search className="w-4 h-4 text-[#1A1A1A]/40 dark:text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Поиск..." 
+                  className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[#1A1A1A]/30 dark:placeholder:text-gray-500 text-[#1A1A1A] dark:text-white"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 md:gap-4">
+                <button 
+                  onClick={toggleTheme}
+                  className="hidden md:flex p-2.5 hover:bg-[#1A1A1A]/5 dark:hover:bg-white/5 rounded-full transition-colors text-[#1A1A1A] dark:text-white"
+                  title="Сменить тему"
+                >
+                  {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+                <button 
+                  onClick={fetchData}
+                  className="p-2.5 hover:bg-[#1A1A1A]/5 dark:hover:bg-white/5 rounded-full transition-colors active:rotate-180 duration-500"
+                  title="Обновить"
+                >
+                  <RefreshCcw className={cn("w-5 h-5 text-[#1A1A1A]/60 dark:text-gray-400", loading && "animate-spin")} />
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors group"
+                  title="Выйти"
+                >
+                  <X className="w-5 h-5 text-red-400 group-hover:text-red-600 dark:text-red-400 dark:group-hover:text-red-300" />
+                </button>
+              </div>
             </div>
-            <button 
-              onClick={fetchData}
-              className="p-2.5 hover:bg-[#1A1A1A]/5 rounded-full transition-colors active:rotate-180 duration-500"
-              title="Обновить"
-            >
-              <RefreshCcw className={cn("w-5 h-5 text-[#1A1A1A]/60", loading && "animate-spin")} />
-            </button>
-            <button 
-              onClick={handleLogout}
-              className="p-2.5 hover:bg-red-50 rounded-full transition-colors group"
-              title="Выйти"
-            >
-              <X className="w-5 h-5 text-red-400 group-hover:text-red-600" />
-            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
         {activeTab === 'orders' ? (
           <>
             {/* Stats Grid */}
@@ -461,7 +540,7 @@ export default function App() {
               <select 
                 value={ordersPrayerId}
                 onChange={(e) => setOrdersPrayerId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                className="px-4 py-2 rounded-xl border border-[#1A1A1A]/10 bg-white text-sm font-medium focus:ring-2 focus:ring-[#5A5A40]/20 outline-none"
+                className="px-4 py-2 rounded-xl border border-[#1A1A1A]/10 dark:border-white/10 bg-white dark:bg-[#1E1E1E] text-sm font-medium focus:ring-2 focus:ring-[#5A5A40]/20 dark:focus:ring-[#7A7A5A]/40 outline-none transition-colors"
               >
                 <option value="all">Все хуралы</option>
                 {prayers.map(p => (
@@ -471,11 +550,11 @@ export default function App() {
             </div>
 
             {/* Orders Table */}
-            <div className="bg-white rounded-[2rem] shadow-xl shadow-[#1A1A1A]/5 border border-[#1A1A1A]/5 overflow-hidden">
+            <div className="bg-white dark:bg-[#1E1E1E] rounded-[2rem] shadow-xl shadow-[#1A1A1A]/5 dark:shadow-none border border-[#1A1A1A]/5 dark:border-white/5 overflow-hidden transition-colors duration-300">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead>
-                    <tr className="bg-[#F5F2ED]/50 text-[#1A1A1A]/40 text-[10px] uppercase tracking-[0.2em] font-bold">
+                    <tr className="bg-[#F5F2ED]/50 dark:bg-[#2A2A2A]/50 text-[#1A1A1A]/40 dark:text-gray-400 text-[10px] uppercase tracking-[0.2em] font-bold transition-colors duration-300">
                       <th className="px-8 py-5">Дата</th>
                       <th className="px-8 py-5">Молебен</th>
                       <th className="px-8 py-5">Имена</th>
@@ -485,38 +564,38 @@ export default function App() {
                       <th className="px-8 py-5 text-right">Действия</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#1A1A1A]/5">
+                  <tbody className="divide-y divide-[#1A1A1A]/5 dark:divide-white/5">
                     {filteredOrders.length > 0 ? filteredOrders.map((order) => (
-                      <tr key={order.id} className="hover:bg-[#F5F2ED]/30 transition-colors group">
-                        <td className="px-8 py-6 text-xs font-medium text-[#1A1A1A]/40">
+                      <tr key={order.id} className="hover:bg-[#F5F2ED]/30 dark:hover:bg-[#2A2A2A]/30 transition-colors group">
+                        <td className="px-8 py-6 text-xs font-medium text-[#1A1A1A]/40 dark:text-gray-400">
                           {format(new Date(order.created_at), 'dd.MM HH:mm')}
                         </td>
                         <td className="px-8 py-6">
-                          <span className="font-serif font-bold text-[#1A1A1A] text-lg">{order.prayer_name}</span>
+                          <span className="font-serif font-bold text-[#1A1A1A] dark:text-white text-lg">{order.prayer_name}</span>
                         </td>
                         <td className="px-8 py-6">
-                          <p className="text-sm font-medium leading-relaxed max-w-xs text-[#1A1A1A]/80">{order.names}</p>
+                          <p className="text-sm font-medium leading-relaxed max-w-xs text-[#1A1A1A]/80 dark:text-gray-300">{order.names}</p>
                         </td>
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-[#5A5A40]/10 flex items-center justify-center text-[#5A5A40] font-bold text-xs shadow-inner">
+                            <div className="w-9 h-9 rounded-xl bg-[#5A5A40]/10 dark:bg-[#7A7A5A]/20 flex items-center justify-center text-[#5A5A40] dark:text-[#A5A580] font-bold text-xs shadow-inner">
                               {order.username[0]?.toUpperCase() || 'A'}
                             </div>
-                            <span className="text-sm font-bold text-[#1A1A1A]/70">@{order.username}</span>
+                            <span className="text-sm font-bold text-[#1A1A1A]/70 dark:text-gray-300">@{order.username}</span>
                           </div>
                         </td>
                         <td className="px-8 py-6">
-                          <span className="text-sm font-mono font-bold text-[#5A5A40] bg-[#5A5A40]/5 px-3 py-1 rounded-lg">{order.donation_amount} ₽</span>
+                          <span className="text-sm font-mono font-bold text-[#5A5A40] dark:text-[#A5A580] bg-[#5A5A40]/5 dark:bg-[#7A7A5A]/10 px-3 py-1 rounded-lg">{order.donation_amount} ₽</span>
                         </td>
                         <td className="px-8 py-6">
                           <StatusBadge status={order.status} />
                         </td>
                         <td className="px-8 py-6 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                          <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all md:translate-x-2 md:group-hover:translate-x-0">
                             {order.status === 'pending' && (
                               <button 
                                 onClick={() => verifyOrder(order.id)}
-                                className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95"
+                                className="p-2.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl hover:bg-emerald-600 dark:hover:bg-emerald-600 hover:text-white dark:hover:text-white transition-all shadow-sm active:scale-95"
                                 title="Подтвердить оплату"
                               >
                                 <Check className="w-4 h-4" />
@@ -525,7 +604,7 @@ export default function App() {
                             {order.status === 'verified' && (
                               <button 
                                 onClick={() => completeOrder(order.id)}
-                                className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95"
+                                className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-600 dark:hover:bg-blue-600 hover:text-white dark:hover:text-white transition-all shadow-sm active:scale-95"
                                 title="Отметить как прочитанное"
                               >
                                 <ScrollText className="w-4 h-4" />
@@ -537,9 +616,9 @@ export default function App() {
                     )) : (
                       <tr>
                         <td colSpan={7} className="px-8 py-20 text-center">
-                          <div className="flex flex-col items-center gap-3 opacity-20">
-                            <Search className="w-12 h-12" />
-                            <p className="font-serif italic text-xl">Заказов не найдено</p>
+                          <div className="flex flex-col items-center gap-3 opacity-20 dark:opacity-40">
+                            <Search className="w-12 h-12 dark:text-gray-400" />
+                            <p className="font-serif italic text-xl dark:text-gray-400">Заказов не найдено</p>
                           </div>
                         </td>
                       </tr>
@@ -550,40 +629,40 @@ export default function App() {
             </div>
           </>
         ) : activeTab === 'broadcast' ? (
-          <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 border border-[#1A1A1A]/5">
+          <div className="bg-white dark:bg-[#1E1E1E] rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 dark:shadow-none border border-[#1A1A1A]/5 dark:border-white/5 transition-colors duration-300">
             <div className="max-w-2xl mx-auto">
               <div className="flex items-center gap-4 mb-8">
-                <div className="bg-blue-50 p-3 rounded-2xl">
-                  <ScrollText className="w-6 h-6 text-blue-600" />
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-2xl">
+                  <ScrollText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-serif font-bold">Рассылка сообщений</h2>
-                  <p className="text-sm text-[#1A1A1A]/60 mt-1">Отправка сообщений всем пользователям бота</p>
+                  <h2 className="text-2xl font-serif font-bold dark:text-white">Рассылка сообщений</h2>
+                  <p className="text-sm text-[#1A1A1A]/60 dark:text-gray-400 mt-1">Отправка сообщений всем пользователям бота</p>
                 </div>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-8">
-                <h3 className="font-bold text-amber-800 mb-3 flex items-center gap-2">
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 rounded-2xl p-6 mb-8 transition-colors">
+                <h3 className="font-bold text-amber-800 dark:text-amber-400 mb-3 flex items-center gap-2">
                   <span className="text-xl">⚠️</span> Как сделать рассылку с фото/видео:
                 </h3>
-                <ol className="list-decimal list-inside space-y-3 text-amber-900/80 text-sm leading-relaxed">
+                <ol className="list-decimal list-inside space-y-3 text-amber-900/80 dark:text-amber-200/80 text-sm leading-relaxed">
                   <li>Откройте бота в Telegram.</li>
                   <li>Отправьте боту сообщение, которое хотите разослать (можно прикрепить фото, видео, добавить форматирование текста).</li>
                   <li>Нажмите на отправленное сообщение и выберите <strong>«Ответить» (Reply)</strong>.</li>
-                  <li>Введите команду <code>/broadcast</code> и отправьте.</li>
+                  <li>Введите команду <code className="dark:bg-black/30 dark:px-1 dark:rounded">/broadcast</code> и отправьте.</li>
                   <li>Бот автоматически разошлет это сообщение всем пользователям!</li>
                 </ol>
               </div>
 
-              <div className="bg-[#F5F2ED] rounded-2xl p-6 text-center border border-[#1A1A1A]/5">
-                <p className="text-[#1A1A1A]/60 text-sm mb-4">
-                  Для рассылки простого текста без медиафайлов вы также можете использовать команду <code>/broadcast</code> в боте, ответив на текстовое сообщение.
+              <div className="bg-[#F5F2ED] dark:bg-[#2A2A2A] rounded-2xl p-6 text-center border border-[#1A1A1A]/5 dark:border-white/5 transition-colors">
+                <p className="text-[#1A1A1A]/60 dark:text-gray-400 text-sm mb-4">
+                  Для рассылки простого текста без медиафайлов вы также можете использовать команду <code className="dark:bg-black/30 dark:px-1 dark:rounded">/broadcast</code> в боте, ответив на текстовое сообщение.
                 </p>
                 <a 
                   href="https://t.me/SogchenBot" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#5A5A40] text-white rounded-xl font-bold hover:bg-[#4A4A30] transition-colors shadow-lg shadow-[#5A5A40]/20"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#5A5A40] dark:bg-[#7A7A5A] text-white rounded-xl font-bold hover:bg-[#4A4A30] dark:hover:bg-[#8A8A6A] transition-colors shadow-lg shadow-[#5A5A40]/20 dark:shadow-none"
                 >
                   Перейти в бота для рассылки
                 </a>
@@ -592,21 +671,21 @@ export default function App() {
           </div>
         ) : activeTab === 'reports' ? (
           <div className="space-y-6">
-            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 border border-[#1A1A1A]/5">
+            <div className="bg-white dark:bg-[#1E1E1E] rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 dark:shadow-none border border-[#1A1A1A]/5 dark:border-white/5 transition-colors duration-300">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-4">
-                  <div className="bg-purple-50 p-3 rounded-2xl">
-                    <FileText className="w-6 h-6 text-purple-600" />
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-2xl">
+                    <FileText className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-serif font-bold">Имена на сегодня</h2>
-                    <p className="text-sm text-[#1A1A1A]/60 mt-1">Скачать списки имен для прочтения на хуралах</p>
+                    <h2 className="text-2xl font-serif font-bold dark:text-white">Имена на сегодня</h2>
+                    <p className="text-sm text-[#1A1A1A]/60 dark:text-gray-400 mt-1">Скачать списки имен для прочтения на хуралах</p>
                   </div>
                 </div>
                 <select 
                   value={reportPrayerId}
                   onChange={(e) => setReportPrayerId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  className="px-4 py-2.5 rounded-xl border border-[#1A1A1A]/10 bg-[#F5F2ED] text-sm font-medium focus:ring-2 focus:ring-[#5A5A40]/20 outline-none"
+                  className="px-4 py-2.5 rounded-xl border border-[#1A1A1A]/10 dark:border-white/10 bg-[#F5F2ED] dark:bg-[#2A2A2A] text-sm font-medium focus:ring-2 focus:ring-[#5A5A40]/20 dark:focus:ring-[#7A7A5A]/40 outline-none transition-colors dark:text-white"
                 >
                   <option value="all">Все хуралы</option>
                   {prayers.map(p => (
@@ -628,12 +707,12 @@ export default function App() {
                     <div 
                       key={prayer.id} 
                       onClick={() => setSelectedPrayerReport(prayer)}
-                      className="p-5 rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F2ED]/50 flex flex-col justify-between cursor-pointer hover:bg-[#F5F2ED] transition-colors"
+                      className="p-5 rounded-2xl border border-[#1A1A1A]/10 dark:border-white/10 bg-[#F5F2ED]/50 dark:bg-[#2A2A2A]/50 flex flex-col justify-between cursor-pointer hover:bg-[#F5F2ED] dark:hover:bg-[#2A2A2A] transition-colors"
                     >
                       <div>
-                        <h3 className="font-bold text-lg mb-1">{prayer.name}</h3>
-                        <p className="text-sm text-[#1A1A1A]/60 mb-4">
-                          Активных заказов: <span className="font-bold text-[#1A1A1A]">{relevantOrders.length}</span>
+                        <h3 className="font-bold text-lg mb-1 dark:text-white">{prayer.name}</h3>
+                        <p className="text-sm text-[#1A1A1A]/60 dark:text-gray-400 mb-4">
+                          Активных заказов: <span className="font-bold text-[#1A1A1A] dark:text-white">{relevantOrders.length}</span>
                         </p>
                       </div>
                       <button 
@@ -645,8 +724,8 @@ export default function App() {
                         className={cn(
                           "flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all",
                           relevantOrders.length > 0 
-                            ? "bg-[#5A5A40] text-white hover:bg-[#4A4A30] shadow-md shadow-[#5A5A40]/20" 
-                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            ? "bg-[#5A5A40] dark:bg-[#7A7A5A] text-white hover:bg-[#4A4A30] dark:hover:bg-[#8A8A6A] shadow-md shadow-[#5A5A40]/20 dark:shadow-none" 
+                            : "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
                         )}
                       >
                         <Download className="w-4 h-4" />
@@ -658,48 +737,62 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 border border-[#1A1A1A]/5">
-              <div className="flex items-center justify-between mb-8">
+            <div className="bg-white dark:bg-[#1E1E1E] rounded-[2rem] p-8 shadow-xl shadow-[#1A1A1A]/5 dark:shadow-none border border-[#1A1A1A]/5 dark:border-white/5 transition-colors duration-300">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-4">
-                  <div className="bg-emerald-50 p-3 rounded-2xl">
-                    <Table className="w-6 h-6 text-emerald-600" />
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-2xl">
+                    <Table className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-serif font-bold">Отчет по заказам</h2>
-                    <p className="text-sm text-[#1A1A1A]/60 mt-1">Полная выгрузка всех заказов и пожертвований</p>
+                    <h2 className="text-2xl font-serif font-bold dark:text-white">Отчет по заказам</h2>
+                    <p className="text-sm text-[#1A1A1A]/60 dark:text-gray-400 mt-1">Полная выгрузка всех заказов и пожертвований</p>
                   </div>
                 </div>
-                <button 
-                  onClick={downloadCSV}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Скачать CSV
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <select 
+                    value={csvPrayerId}
+                    onChange={(e) => setCsvPrayerId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    className="px-4 py-2.5 rounded-xl border border-[#1A1A1A]/10 dark:border-white/10 bg-[#F5F2ED] dark:bg-[#2A2A2A] text-sm font-medium focus:ring-2 focus:ring-[#5A5A40]/20 dark:focus:ring-[#7A7A5A]/40 outline-none transition-colors dark:text-white"
+                  >
+                    <option value="all">Все хуралы</option>
+                    {prayers.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  <button 
+                    onClick={downloadCSV}
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 dark:bg-emerald-700 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-600/20 dark:shadow-none"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Скачать CSV
+                  </button>
+                </div>
               </div>
 
-              <div className="bg-[#F5F2ED] rounded-2xl p-6 border border-[#1A1A1A]/5">
+              <div className="bg-[#F5F2ED] dark:bg-[#2A2A2A] rounded-2xl p-6 border border-[#1A1A1A]/5 dark:border-white/5 transition-colors">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   <div>
-                    <p className="text-xs text-[#1A1A1A]/50 uppercase font-bold tracking-wider mb-1">Всего заказов</p>
-                    <p className="text-2xl font-serif font-bold">{orders.length}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#1A1A1A]/50 uppercase font-bold tracking-wider mb-1">Оплачено</p>
-                    <p className="text-2xl font-serif font-bold text-emerald-600">
-                      {orders.filter(o => o.status === 'verified').length}
+                    <p className="text-xs text-[#1A1A1A]/50 dark:text-gray-400 uppercase font-bold tracking-wider mb-1">Всего заказов</p>
+                    <p className="text-2xl font-serif font-bold dark:text-white">
+                      {csvPrayerId === 'all' ? orders.length : orders.filter(o => o.prayer_id === csvPrayerId).length}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#1A1A1A]/50 uppercase font-bold tracking-wider mb-1">Сумма пожертвований</p>
-                    <p className="text-2xl font-serif font-bold text-blue-600">
-                      {orders.reduce((sum, o) => sum + (o.donation_amount || 0), 0)} ₽
+                    <p className="text-xs text-[#1A1A1A]/50 dark:text-gray-400 uppercase font-bold tracking-wider mb-1">Оплачено</p>
+                    <p className="text-2xl font-serif font-bold text-emerald-600 dark:text-emerald-400">
+                      {(csvPrayerId === 'all' ? orders : orders.filter(o => o.prayer_id === csvPrayerId)).filter(o => o.status === 'verified').length}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#1A1A1A]/50 uppercase font-bold tracking-wider mb-1">Завершено</p>
-                    <p className="text-2xl font-serif font-bold text-gray-600">
-                      {orders.filter(o => o.status === 'completed').length}
+                    <p className="text-xs text-[#1A1A1A]/50 dark:text-gray-400 uppercase font-bold tracking-wider mb-1">Сумма пожертвований</p>
+                    <p className="text-2xl font-serif font-bold text-blue-600 dark:text-blue-400">
+                      {(csvPrayerId === 'all' ? orders : orders.filter(o => o.prayer_id === csvPrayerId)).reduce((sum, o) => sum + (o.donation_amount || 0), 0)} ₽
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#1A1A1A]/50 dark:text-gray-400 uppercase font-bold tracking-wider mb-1">Завершено</p>
+                    <p className="text-2xl font-serif font-bold text-gray-600 dark:text-gray-400">
+                      {(csvPrayerId === 'all' ? orders : orders.filter(o => o.prayer_id === csvPrayerId)).filter(o => o.status === 'completed').length}
                     </p>
                   </div>
                 </div>
@@ -707,39 +800,39 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-[2rem] shadow-xl border border-[#1A1A1A]/5 p-8">
+          <div className="bg-white dark:bg-[#1E1E1E] rounded-[2rem] shadow-xl dark:shadow-none border border-[#1A1A1A]/5 dark:border-white/5 p-8 transition-colors duration-300">
             <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-serif font-bold">Активные молебны</h2>
+              <h2 className="text-2xl font-serif font-bold dark:text-white">Активные молебны</h2>
               <button 
                 onClick={() => setIsAddModalOpen(true)}
-                className="px-5 py-2.5 bg-[#5A5A40] text-white rounded-full text-sm font-bold hover:bg-[#4A4A30] transition-all"
+                className="px-5 py-2.5 bg-[#5A5A40] dark:bg-[#7A7A5A] text-white rounded-full text-sm font-bold hover:bg-[#4A4A30] dark:hover:bg-[#8A8A6A] transition-all"
               >
                 Добавить молебен
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {prayers.map(prayer => (
-                <div key={prayer.id} className="p-6 rounded-3xl border border-[#1A1A1A]/5 bg-[#F5F2ED]/30 hover:bg-[#F5F2ED]/50 transition-colors">
+                <div key={prayer.id} className="p-6 rounded-3xl border border-[#1A1A1A]/5 dark:border-white/5 bg-[#F5F2ED]/30 dark:bg-[#2A2A2A]/30 hover:bg-[#F5F2ED]/50 dark:hover:bg-[#2A2A2A]/50 transition-colors">
                   <div className="flex justify-between items-start mb-4">
-                    <h3 className="font-serif font-bold text-xl">{prayer.name}</h3>
+                    <h3 className="font-serif font-bold text-xl dark:text-white">{prayer.name}</h3>
                     <div className={cn(
                       "px-2 py-1 rounded-md text-[10px] font-bold uppercase",
-                      prayer.is_active ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                      prayer.is_active ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400"
                     )}>
                       {prayer.is_active ? "Активен" : "Скрыт"}
                     </div>
                   </div>
-                  <p className="text-sm text-[#1A1A1A]/60 leading-relaxed mb-6">{prayer.description || 'Нет описания'}</p>
+                  <p className="text-sm text-[#1A1A1A]/60 dark:text-gray-400 leading-relaxed mb-6">{prayer.description || 'Нет описания'}</p>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => togglePrayer(prayer.id)}
-                      className="flex-1 py-2 rounded-xl border border-[#1A1A1A]/10 text-xs font-bold hover:bg-white transition-colors"
+                      className="flex-1 py-2 rounded-xl border border-[#1A1A1A]/10 dark:border-white/10 text-xs font-bold hover:bg-white dark:hover:bg-[#3A3A3A] dark:text-gray-300 transition-colors"
                     >
                       {prayer.is_active ? "Скрыть" : "Показать"}
                     </button>
                     <button 
                       onClick={() => deletePrayer(prayer.id)}
-                      className="px-4 py-2 rounded-xl border border-red-100 text-red-600 text-xs font-bold hover:bg-red-50 transition-colors"
+                      className="px-4 py-2 rounded-xl border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       Удалить
                     </button>
@@ -754,26 +847,26 @@ export default function App() {
       {/* Selected Prayer Report Modal */}
       {selectedPrayerReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center p-6 border-b border-[#1A1A1A]/10">
+          <div className="bg-white dark:bg-[#1E1E1E] rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200 border border-[#1A1A1A]/5 dark:border-white/5">
+            <div className="flex justify-between items-center p-6 border-b border-[#1A1A1A]/10 dark:border-white/10">
               <div>
-                <h3 className="text-2xl font-serif font-bold">{selectedPrayerReport.name}</h3>
-                <p className="text-sm text-[#1A1A1A]/60 mt-1">Список имен для прочтения</p>
+                <h3 className="text-2xl font-serif font-bold dark:text-white">{selectedPrayerReport.name}</h3>
+                <p className="text-sm text-[#1A1A1A]/60 dark:text-gray-400 mt-1">Список имен для прочтения</p>
               </div>
-              <button onClick={() => setSelectedPrayerReport(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <X className="w-6 h-6 text-[#1A1A1A]/40" />
+              <button onClick={() => setSelectedPrayerReport(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors">
+                <X className="w-6 h-6 text-[#1A1A1A]/40 dark:text-gray-400" />
               </button>
             </div>
             
             <div className="p-6 overflow-y-auto flex-1">
               <div className="space-y-4">
                 {orders.filter(o => o.prayer_id === selectedPrayerReport.id && o.status !== 'completed').length === 0 ? (
-                  <p className="text-center text-[#1A1A1A]/40 py-8">Нет активных заказов для этого молебна</p>
+                  <p className="text-center text-[#1A1A1A]/40 dark:text-gray-500 py-8">Нет активных заказов для этого молебна</p>
                 ) : (
                   orders.filter(o => o.prayer_id === selectedPrayerReport.id && o.status !== 'completed').map(order => (
-                    <div key={order.id} className="bg-[#F5F2ED]/50 p-4 rounded-2xl border border-[#1A1A1A]/5">
-                      <p className="text-lg font-medium leading-relaxed mb-2">{order.names}</p>
-                      <div className="flex justify-between items-center text-xs text-[#1A1A1A]/50">
+                    <div key={order.id} className="bg-[#F5F2ED]/50 dark:bg-[#2A2A2A]/50 p-4 rounded-2xl border border-[#1A1A1A]/5 dark:border-white/5">
+                      <p className="text-lg font-medium leading-relaxed mb-2 dark:text-white">{order.names}</p>
+                      <div className="flex justify-between items-center text-xs text-[#1A1A1A]/50 dark:text-gray-400">
                         <span>{order.donation_amount > 0 ? `Пожертвование: ${order.donation_amount} ₽` : 'Без суммы'}</span>
                         <span>{format(new Date(order.created_at), 'dd.MM.yyyy HH:mm')}</span>
                       </div>
@@ -783,11 +876,11 @@ export default function App() {
               </div>
             </div>
 
-            <div className="p-6 border-t border-[#1A1A1A]/10 bg-gray-50 rounded-b-[2rem] flex flex-col sm:flex-row gap-3">
+            <div className="p-6 border-t border-[#1A1A1A]/10 dark:border-white/10 bg-gray-50 dark:bg-[#1A1A1A] rounded-b-[2rem] flex flex-col sm:flex-row gap-3">
               <button 
                 onClick={() => downloadNames(selectedPrayerReport.name)}
                 disabled={orders.filter(o => o.prayer_id === selectedPrayerReport.id && o.status !== 'completed').length === 0}
-                className="flex-1 py-3 bg-white border border-[#1A1A1A]/10 text-[#1A1A1A] rounded-xl font-bold hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-white dark:bg-[#2A2A2A] border border-[#1A1A1A]/10 dark:border-white/10 text-[#1A1A1A] dark:text-white rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-[#3A3A3A] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 Скачать .txt
@@ -801,7 +894,7 @@ export default function App() {
                   }
                 }}
                 disabled={orders.filter(o => o.prayer_id === selectedPrayerReport.id && o.status !== 'completed').length === 0}
-                className="flex-1 py-3 bg-[#5A5A40] text-white rounded-xl font-bold hover:bg-[#4A4A30] transition-all shadow-lg shadow-[#5A5A40]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-[#5A5A40] dark:bg-[#7A7A5A] text-white rounded-xl font-bold hover:bg-[#4A4A30] dark:hover:bg-[#8A8A6A] transition-all shadow-lg shadow-[#5A5A40]/20 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Хурал завершен (Отправить всем)
@@ -814,37 +907,37 @@ export default function App() {
       {/* Add Prayer Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white dark:bg-[#1E1E1E] rounded-[2rem] shadow-2xl w-full max-w-md p-8 animate-in fade-in zoom-in duration-200 border border-[#1A1A1A]/5 dark:border-white/5">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-serif font-bold">Новый молебен</h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <X className="w-5 h-5" />
+              <h3 className="text-2xl font-serif font-bold dark:text-white">Новый молебен</h3>
+              <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors">
+                <X className="w-5 h-5 dark:text-gray-400" />
               </button>
             </div>
             <form onSubmit={addPrayer} className="space-y-4">
               <div>
-                <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1.5 ml-1">Название</label>
+                <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 ml-1">Название</label>
                 <input 
                   type="text" 
                   required
                   placeholder="Напр: Алтан Гэрэл"
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-[#5A5A40]/20 focus:border-[#5A5A40] outline-none transition-all"
+                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#2A2A2A] text-[#1A1A1A] dark:text-white focus:ring-2 focus:ring-[#5A5A40]/20 dark:focus:ring-[#7A7A5A]/40 focus:border-[#5A5A40] dark:focus:border-[#7A7A5A] outline-none transition-all placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   value={newPrayer.name}
                   onChange={e => setNewPrayer({...newPrayer, name: e.target.value})}
                 />
               </div>
               <div>
-                <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1.5 ml-1">Описание</label>
+                <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-1.5 ml-1">Описание</label>
                 <textarea 
                   placeholder="О чем этот молебен..."
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-[#5A5A40]/20 focus:border-[#5A5A40] outline-none transition-all h-32 resize-none"
+                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#2A2A2A] text-[#1A1A1A] dark:text-white focus:ring-2 focus:ring-[#5A5A40]/20 dark:focus:ring-[#7A7A5A]/40 focus:border-[#5A5A40] dark:focus:border-[#7A7A5A] outline-none transition-all h-32 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   value={newPrayer.description}
                   onChange={e => setNewPrayer({...newPrayer, description: e.target.value})}
                 />
               </div>
               <button 
                 type="submit"
-                className="w-full py-4 bg-[#5A5A40] text-white rounded-2xl font-bold hover:bg-[#4A4A30] transition-all shadow-lg shadow-[#5A5A40]/20 active:scale-[0.98] mt-4"
+                className="w-full py-4 bg-[#5A5A40] dark:bg-[#7A7A5A] text-white rounded-2xl font-bold hover:bg-[#4A4A30] dark:hover:bg-[#8A8A6A] transition-all shadow-lg shadow-[#5A5A40]/20 dark:shadow-none active:scale-[0.98] mt-4"
               >
                 Создать
               </button>
@@ -858,12 +951,12 @@ export default function App() {
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode, label: string, value: string | number, color: string }) {
   return (
-    <div className="bg-white p-6 rounded-3xl border border-[#1A1A1A]/5 shadow-sm">
-      <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center mb-4", color)}>
+    <div className="bg-white dark:bg-[#1E1E1E] p-6 rounded-3xl border border-[#1A1A1A]/5 dark:border-white/5 shadow-sm transition-colors duration-300">
+      <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center mb-4 dark:bg-opacity-20", color)}>
         {icon}
       </div>
-      <p className="text-xs text-[#1A1A1A]/60 uppercase tracking-wider font-bold mb-1">{label}</p>
-      <p className="text-2xl font-serif font-bold">{value}</p>
+      <p className="text-xs text-[#1A1A1A]/60 dark:text-gray-400 uppercase tracking-wider font-bold mb-1">{label}</p>
+      <p className="text-2xl font-serif font-bold dark:text-white">{value}</p>
     </div>
   );
 }
@@ -875,8 +968,8 @@ function FilterButton({ active, children, onClick }: { active: boolean, children
       className={cn(
         "px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap",
         active 
-          ? "bg-[#5A5A40] text-white shadow-md shadow-[#5A5A40]/20" 
-          : "bg-white text-[#1A1A1A]/60 border border-[#1A1A1A]/10 hover:border-[#5A5A40]/40"
+          ? "bg-[#5A5A40] dark:bg-[#7A7A5A] text-white shadow-md shadow-[#5A5A40]/20 dark:shadow-none" 
+          : "bg-white dark:bg-[#1E1E1E] text-[#1A1A1A]/60 dark:text-gray-400 border border-[#1A1A1A]/10 dark:border-white/10 hover:border-[#5A5A40]/40 dark:hover:border-white/20"
       )}
     >
       {children}
@@ -886,9 +979,9 @@ function FilterButton({ active, children, onClick }: { active: boolean, children
 
 function StatusBadge({ status }: { status: Order['status'] }) {
   const styles = {
-    pending: "bg-amber-50 text-amber-600 border-amber-200",
-    verified: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    completed: "bg-gray-50 text-gray-500 border-gray-200"
+    pending: "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700/30",
+    verified: "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700/30",
+    completed: "bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700/50"
   };
 
   const labels = {
